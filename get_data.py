@@ -20,15 +20,18 @@ class BuildDatabase:
         :return:
             return the database extracted from the API
         """
+        # Get the ID now
         last_id = self.client.get_recent_trades(symbol=self.symbol, limit=1)[0]['id']
         start_id = last_id - nrows + 1
-        print("Data requested to the API from Id = {} to Id = {}".format(start_id, last_id))
-        if nrows % 500 == 0:
-            num_ite = nrows/500
-        else:
-            raise AttributeError('Fuck you, you have to put a multiple of 500 for nrows, read the doc next time.')
 
-        for i in range(start_id, last_id, 500):
+        #TODO: add condition not to scrape more than the API limit !!!!!!! (1200 to check)
+        if (nrows % 500 == 0) or (nrows<1200*500):
+            print("Data requested to the API from Id = {} to Id = {}".format(start_id, last_id))
+        else:
+            raise AttributeError('Fuck you, you have to put a multiple of 500 for nrows, '
+                                 'or requested more than 1200$500 rows, read the doc next time.')
+
+        for i in range(start_id, last_id, 500):  # 500 is max limit
             print(i)
             extract_i = self.client.get_historical_trades(symbol=self.symbol, limit=500, fromId=i)
             print(extract_i)
@@ -38,6 +41,8 @@ class BuildDatabase:
 
 
     def create_modeling_database(self):
+
+        # Changing the awful time display into a date
         self.database["date"] = pd.to_datetime(self.database['time'], unit='ms')
         # todo: aggregate each 10 seconds and build new features !
         return

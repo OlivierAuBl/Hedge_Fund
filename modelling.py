@@ -2,6 +2,7 @@ from fbprophet import Prophet
 import matplotlib.pyplot as plt
 from get_data import BuildDatabase
 import numpy as np
+import pandas as pd
 
 symbol = 'BNBBTC'
 c = BuildDatabase(api_key, api_secret, symbol)
@@ -12,7 +13,7 @@ db = c.create_modeling_database('5s')
 
 
 
-def build_target(database, t_interval, percentage_rise=3):
+def build_target(database, t_interval, percentage_rise=2.0):
     price = database['price'].values
     new_target = np.zeros(len(price))
 
@@ -39,12 +40,59 @@ db_train = df.iloc[0:int_stop,:]
 db_test = df.iloc[int_stop:, :]
 
 ########################################################################################################################
-#                                      ------------------- Prophet -----------------
+#                                      ------------------- LSTM -----------------
 
-#   Problem since freq lower than day are not yet implemented. Should be in v. 0.3: check the releases
 ########################################################################################################################
+# https://machinelearningmastery.com/time-series-forecasting-long-short-term-memory-network-python/
+
+def add_previous_values(df, target_name, lag=1):
+
+    new_col = {}
+    for i in range(lag):
+        new_col['{}-{}'.format(target_name, i)] = df[target_name].shift(i)
+    new_col = pd.DataFrame(new_col)
+    df = pd.concat([df, new_col.fillna(0)], axis=1) #todo: fillna not good
+    return df
+
+test = add_previous_values(db_train, 'price', lag=3)
+
+#todo: stationnarize ?
+
+#todo: what has to be btw -1 and 1 ??
+
+#check keras doc...
+
+X, y = db_train[:, 0:-1], db_train[:, -1]
+X = X.reshape(X.shape[0], 1, X.shape[1])
 
 
+
+########################################################################################################################
+#                                      ------------------- XGB -----------------
+
+db_training = db_train
+target_name = 'y'
+weight_name = None
+categorical_columns = []
+n_Xval = 2
+num_rounds = 3
+n_points = 1
+dict_bounds = {'eta': (0.01, 0.05), 'max_depth': (2, 3), 'min_child_weight': (1, 3), 'gamma': (0., 0.),
+               'lambda_': (0., 0.), 'colsample_bytree': (1, 1), 'subsample': (1, 1)}
+
+bg, bo = bayes_gridsearch(db_training,
+                          target_name,
+                          categorical_columns,
+                          weight_name,
+                          dict_bounds,
+                          num_rounds,
+                          kappa=3,
+                          n_Xval=n_Xval,
+                          n_points=n_points,
+                          nthread=4,
+                          eval_metric='logloss',
+                          objective='count:poisson',  # "reg:gamma"
+                          outfile=None)
 
 
 

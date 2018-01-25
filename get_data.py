@@ -1,6 +1,8 @@
 from binance.client import Client
 import pandas as pd
 import matplotlib.pyplot as plt
+from time import sleep
+import brouillon
 
 class BuildDatabase:
 
@@ -22,15 +24,20 @@ class BuildDatabase:
         start_id = last_id - nrows + 1
 
         #TODO: add condition not to scrape more than the API limit !!!!!!! (1200 to check)
-        if (nrows % 500 == 0) or (nrows<1200*500):
+        if (nrows % 500 == 0):
             print("Data requested to the API from Id = {} to Id = {}".format(start_id, last_id))
         else:
             raise AttributeError('Fuck you, you have to put a multiple of 500 for nrows, '
-                                 'or requested more than 1200$500 rows, read the doc next time.')
+                                 'or requested more than 1200x500 rows, read the doc next time.')
+        nbcall, call = nrows/500, 0
 
         for i in range(start_id, last_id, 500):  # 500 is max limit
             extract_i = self.client.get_historical_trades(symbol=self.symbol, limit=500, fromId=i)
             self.database = pd.concat([self.database, pd.DataFrame(extract_i)])
+            sleep(1) # should be 0.5 in theory
+            call += 1
+            print("{}/{}".format(call, nbcall))
+
 
         return self.database
 
@@ -100,7 +107,7 @@ class BuildDatabase:
 
         agg_db["weekday_name"] = agg_db.index
         agg_db["weekday_name"] = agg_db["weekday_name"].dt.weekday_name
-        # todo : reflechir aux NaN à la fin.
+        # todo : reflechir aux NaN a la fin.
         # todo : reflechir a des variables type matin/soir etc...
         return agg_db
 
@@ -108,8 +115,8 @@ class BuildDatabase:
 
 
 symbol = 'BNBBTC'
-c = BuildDatabase(api_key, api_secret, symbol)
-db = c.start_data_extract(6000)
+c = BuildDatabase(brouillon.api_key, brouillon.api_secret, symbol)
+db = c.start_data_extract(100000)
 
 db = c.create_modeling_database('2s')
 

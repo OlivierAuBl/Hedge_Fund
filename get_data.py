@@ -1,8 +1,8 @@
 from binance.client import Client
 import pandas as pd
-import matplotlib.pyplot as pt
-import time  # use to manage the API limit of 1200 requests by min
-import numpy as np
+import matplotlib.pyplot as plt
+from time import sleep
+import brouillon
 
 class BuildDatabase:
 
@@ -10,8 +10,6 @@ class BuildDatabase:
         self.client = Client(api_key, api_secret)
         self.symbol = symbol
         self.database = pd.DataFrame(columns=['id', 'isBestMatch', 'isBuyerMaker', 'price', 'qty', 'time'])
-
-
 
     def start_data_extract(self, nrows):
         """
@@ -26,16 +24,20 @@ class BuildDatabase:
         start_id = last_id - nrows + 1
 
         #TODO: add condition not to scrape more than the API limit !!!!!!! (1200 to check)
-        if (nrows % 500 == 0) or (nrows<1200*500):
+        if (nrows % 500 == 0):
             print("Data requested to the API from Id = {} to Id = {}".format(start_id, last_id))
         else:
             raise AttributeError('Fuck you, you have to put a multiple of 500 for nrows, '
-                                 'or requested more than 1200$500 rows, read the doc next time.')
+                                 'or requested more than 1200x500 rows, read the doc next time.')
+        nbcall, call = nrows/500, 0
 
         for i in range(start_id, last_id, 500):  # 500 is max limit
             extract_i = self.client.get_historical_trades(symbol=self.symbol, limit=500, fromId=i)
             self.database = pd.concat([self.database, pd.DataFrame(extract_i)])
-            time.sleep(2)  # theoretically a .5s pause should be enough but with a small margin that will be enough
+            sleep(1) # should be 0.5 in theory
+            call += 1
+            print("{}/{}".format(call, nbcall))
+
 
         return self.database
 
@@ -105,7 +107,7 @@ class BuildDatabase:
 
         agg_db["weekday_name"] = agg_db.index
         agg_db["weekday_name"] = agg_db["weekday_name"].dt.weekday_name
-        # todo : reflechir aux NaN à la fin.
+        # todo : reflechir aux NaN a la fin.
         # todo : reflechir a des variables type matin/soir etc...
         return agg_db
 
@@ -113,25 +115,10 @@ class BuildDatabase:
 
 
 symbol = 'BNBBTC'
-c = BuildDatabase(api_key, api_secret, symbol)
-db = c.start_data_extract(6000)
+c = BuildDatabase(brouillon.api_key, brouillon.api_secret, symbol)
+db = c.start_data_extract(100000)
 
 db = c.create_modeling_database('2s')
 
 db = pd.DataFrame(db['price'])
 db.plot()
-
-# TODO choisir des monnaies à trader :
-#forex = np.array(["BNBBTC","LTCBTC","ETHBTC","NEOBTC"]) # looks like les plus liquides... pas sur du neo
-symbol="BNBBTC"
-
-#for symbol in forex
-c = BuildDatabase(api_key, api_secret, symbol)
-db = c.start_data_extract(200000) # 20000 seems a bit low... 5h history
-
-db["date"] = pd.to_datetime(db['time'], unit='ms')
-db.index = db["date"]
-db = db.drop(["date", "time", "id"], axis=1)
-
-db = db.apply(pd.to_numeric)  # todo: put float 32 + comment
-db.to_csv(path_or_buf=symbol + "_extract.csv", index=False)

@@ -3,17 +3,18 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as pt
 
-"""
-TODO : Description of this class
 
 
-
-"""
 
 
 class Backtest1:
     """
     Class for a Backtest with y and y_hat provided.
+    """
+
+    # TODO : Description of this class:
+    """
+
     """
 
     def __init__(self, y, y_hat, thresh, transaction_fees=0.005, buy_fees=0.005, sell_fees=0.005):
@@ -136,7 +137,7 @@ class Backtest2:
     Class for a Backtest with a time step and a T-period of carry
     """
 
-    def __init__(self, y, delta_y_hat, T, transaction_fees=0.005, buy_fees=0.005, sell_fees=0.005):
+    def __init__(self, y, delta_y_hat, T, transaction_fees=0.0005, buy_fees=0.005, sell_fees=0.005):
         """
         Constructor
         :param y: double series
@@ -158,8 +159,9 @@ class Backtest2:
         self.transaction_fees = transaction_fees
         self.buy_fees = buy_fees
         self.sell_fees = sell_fees
+        self.gain_since_start = 0
 
-    def calculate_win(self, h, h_win, h_loss, target_diff, loss_diff, again_max):
+    def calculate_win(self, h, h_win, h_loss, target_diff, loss_diff, again_max,wait_max):
         """
         Function used to calculate the performance of a strategy as a %
         :param h: double threshold for buying ang getting long
@@ -180,36 +182,44 @@ class Backtest2:
         # t is the remaining time before we balance our portfolio
         t = 0
 
-        # again will be a parameter
+        # again/wait will be a parameter
         again = 0
+        wait = 0
+        nbAchat=0
 
         # buy_price and sell_price are used to calculate the performance
         # target_price and stop_price are determined so that we cut off our loss or our gain
 
         for i in range(len(self.y)):
             # security : if we have a course that is 0 we have a problem
+
+
             if self.y[i] == 0:
                 print("We've got a problem !! price is 0 !!")
             # we have the asset
             elif long:
 
-                # we have reached our target price or our carry period
-                if (self.y[i] > target_price) or (t == 0):
+                # we have reached our target price
+                if self.y[i] > target_price:
 
                     # we keep our asset or we sell it
                     if self.delta_y_hat[i] > h_win:
                         # new target_price and stop_price TODO Define a better stop loss and target price strategy
-                        target_price = self.y[i] * (1 + target_diff)
-                        stop_price = self.y[i] * (1 - loss_diff)
+                        target_price = self.y[i] * (1. + target_diff)
+                        stop_price = self.y[i] * (1. - loss_diff)
                         t = self.T
                         again = 0
+                        print("On a atteint le target price au temps {} et on reste. Cours : {}".format(i, self.y[i]))
                     else:
                         # we sell the asset
-                        sell_price = self.y[i] * (1 - self.sell_fees) * (1 - self.transaction_fees)
+                        sell_price = self.y[i] * (1. - self.sell_fees - self.transaction_fees)
                         index *= sell_price / buy_price
                         long = False
                         t = 0
                         again = 0
+                        print("On a atteint le target price au temps {} et on vend à {}".format(i, self.y[i]))
+                        print("Performance : {}".format(sell_price / buy_price))
+                        print('______________\n')
 
                 # we have reached the stop loss price
                 elif self.y[i] < stop_price:
@@ -217,52 +227,81 @@ class Backtest2:
                     if (again < again_max) and self.delta_y_hat[i] > h_loss:
                         again += 1
                         t = self.T
-                        target_price = self.y[i] * (1 + target_diff)
-                        stop_price = self.y[i] * (1 - loss_diff)
+                        target_price = self.y[i] * (1. + target_diff)
+                        stop_price = self.y[i] * (1. - loss_diff)
+                        print("On a atteint le stop loss au temps {} et on attend pour vendre. Cours : {}".format(i, self.y[i]))
                     else:
                         # we sell the asset
-                        sell_price = self.y[i] * (1 - self.sell_fees) * (1 - self.transaction_fees)
+                        sell_price = self.y[i] * (1. - self.sell_fees - self.transaction_fees)
                         index *= sell_price / buy_price
                         long = False
                         t = 0
                         again = 0
+                        print("On a atteint le stop loss au temps {} et on vend à {}".format(i, self.y[i]))
+                        print("Performance : {}".format(sell_price / buy_price))
+                        print('______________\n')
+                elif t == 0:
+                    print("on a atteint la fin du periode de carry")
+                    if wait < wait_max:
+                        wait += 1
+                        print("On reste dans le deal")
+                    else:
+                        wait = 0
+                        # we sell the asset
+                        sell_price = self.y[i] * (1. - self.sell_fees - self.transaction_fees)
+                        index *= sell_price / buy_price
+                        long = False
+                        t = 0
+                        again = 0
+                        print("Wait_max atteint on sort du deal au temps {} et on vend à {}".format(i, self.y[i]))
+                        print("Performance : {}".format(sell_price / buy_price))
+                        print('______________\n')
+
                 else:
                     # nothing happen, we decrement t
                     t -= 1
 
             # we don't have the asset and we will buy it
             elif self.delta_y_hat[i] > h:
-                target_price = self.y[i] * (1 + target_diff)
-                stop_price = self.y[i] * (1 - loss_diff)
+                target_price = self.y[i] * (1. + target_diff)
+                stop_price = self.y[i] * (1. - loss_diff)
                 long = True
-                buy_price = self.y[i] * (1 + self.buy_fees) * (1 + self.transaction_fees)
+                buy_price = self.y[i] * (1. + self.buy_fees + self.transaction_fees)
                 t = self.T
+                print("On achete a {} au temps {}".format(self.y[i], i))
+                nbAchat += 1
+
 
         # in the end of the test, if we still have the asset, we sell it
         if long:
-            sell_price = self.y[i] * (1 - self.sell_fees) * (1 - self.transaction_fees)
+            sell_price = self.y[i] * (1 - self.sell_fees - self.transaction_fees)
             index *= sell_price / buy_price
+            print("On a atteint la fin des data. Cours :".format(self.y[i]))
+            print("Performance : {}".format(sell_price / buy_price))
+            print('______________\n')
 
+        print("Nombre d'achat : {}".format(nbAchat))
         return index / 100 - 1
 
 
 # Tests
-transaction_fees = 0.005
-buy_fees = 0.005
-sell_fees = 0.005
+buy_fees = 0.0025
+transaction_fees = 0.001/2.
+sell_fees = 0.0025
 T = 300  # 2s*300 = 10min
-h = 1
+h = 2
 h_win = 1
-h_loss = 1.2
-target_diff = 0.05
-loss_diff = 0.05
-again_max = 5
+h_loss = 1
+target_diff = 0.015
+loss_diff = 0.012
+again_max = 2
+wait_max = 2
 
 # Tests 1 check a winning strategy
-y1 = np.array([1, 2, 3])
-y_hat1 = np.array([3, 3, 3])
+y1 = for_mouch.y.values #np.array([1, 2, 3])
+y_hat1 = for_mouch.y_thre_hat.values # np.array([3, 3, 3])
 b1 = Backtest2(y=y1, delta_y_hat=y_hat1, T=T, transaction_fees=transaction_fees, buy_fees=buy_fees, sell_fees=sell_fees)
-Ind1 = b1.calculate_win(h=h, h_win=h_win, h_loss=h_loss, target_diff=target_diff, loss_diff=loss_diff, again_max=again_max)
+Ind1 = b1.calculate_win(h=h, h_win=h_win, h_loss=h_loss, target_diff=target_diff, loss_diff=loss_diff, again_max=again_max,wait_max=wait_max)
 print(Ind1)
 
 # Tests 2 check a losing strategy

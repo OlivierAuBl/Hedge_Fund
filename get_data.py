@@ -7,7 +7,9 @@ import brouillon
 class BuildDatabase:
 
     def __init__(self, api_key, api_secret, symbol):
-        self.client = Client(api_key, api_secret)
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.client = 0
         self.symbol = symbol
         self.database = pd.DataFrame(columns=['id', 'isBestMatch', 'isBuyerMaker', 'price', 'qty', 'time'])
 
@@ -19,7 +21,10 @@ class BuildDatabase:
         :return:
             return the database extracted from the API
         """
+
+        self.client = Client(self.api_key, self.api_secret)
         # Get the ID now
+
         last_id = self.client.get_recent_trades(symbol=self.symbol, limit=1)[0]['id']
         start_id = last_id - nrows + 1
 
@@ -32,24 +37,43 @@ class BuildDatabase:
         nbcall, call = nrows/500, 0
 
         for i in range(start_id, last_id, 500):  # 500 is max limit
-            extract_i = self.client.get_historical_trades(symbol=self.symbol, limit=500, fromId=i)
+            # sometime it bugs randomly, try until it works:
+            extract_i = None
+            failed_try = 0
+            while extract_i is None:
+                try:
+                    extract_i = self.client.get_historical_trades(symbol=self.symbol, limit=500, fromId=i)
+                except:
+                    failed_try += 1
+                    if failed_try == 1199:
+                        raise RuntimeError('Too much trying (1200) to the API, stoping the loop')
+                    pass
+
             self.database = pd.concat([self.database, pd.DataFrame(extract_i)])
-            sleep(1) # should be 0.5 in theory
+            if nbcall > 1200:
+                sleep(0.7)  # should be 0.5 in theory
             call += 1
+
             print("{}/{}".format(call, nbcall))
 
 
         return self.database
 
-    def create_modeling_database(self, agg_lvl='10s'):
+    def create_modeling_database(self, agg_lvl='10s', database=None):
         """
 
+        :param database: pd.DataFrame
+        if you want to use a database different
         :param agg_lvl: str
         time use for aggregation
         :return:
         the aggregatd database with new features built.
         """
-        db = self.database
+        if database is not None:
+            db = database
+        else:
+            db = self.database
+
         db["date"] = pd.to_datetime(db['time'], unit='ms')
         db.index = db["date"]
         db = db.drop(["date", "time", "id"], axis=1)
@@ -113,12 +137,14 @@ class BuildDatabase:
 
 
 
-
+'''
 symbol = 'BNBBTC'
 c = BuildDatabase(brouillon.api_key, brouillon.api_secret, symbol)
-db = c.start_data_extract(100000)
+# Around 3M lines for one month for BNBBTC
+db = c.start_data_extract(1000000)
 
-db = c.create_modeling_database('2s')
+db_mini = c.create_modeling_database('5s')
 
 db = pd.DataFrame(db['price'])
 db.plot()
+'''

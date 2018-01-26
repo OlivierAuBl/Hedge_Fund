@@ -15,6 +15,21 @@ import matplotlib.pyplot as plt
 
 #push test
 
+
+def weighted_avg_and_var(values, weights, unbiased=True):
+    """
+    Return the weighted average and standard deviation.
+    values, weights -- Numpy ndarrays with the same shape.
+    """
+    average = np.average(values, weights=weights)
+    if unbiased:
+        variance = np.sum(weights*(values-average)**2)/(np.sum(weights)-np.sum(weights**2)/np.sum(weights))
+    else:
+        variance = np.average((values-average)**2, weights=weights)  # Fast and numerically precise
+
+    return average, variance
+
+
 def check_deviance(y, y_pred, weight=None):
     """
     Robust checks to run at beginning of deviance
@@ -1185,6 +1200,7 @@ def var_importance_xgb(xgb_model, prefix, db_columns, n_var=50, outfile=None, pa
         outfile.write('\n--------------------------------------------------------\n')
 
     df2.index = range(0, len(df2.index))
+    print df2
     df3 = df2.ix[range((len(df2.index) - n_var + 1), len(df2.index)), ]
     df3.plot(kind='barh', x='feature', y='fscore', legend=False, figsize=(6, 10))
     plt.title('XGBoost Feature Importance')
@@ -2129,4 +2145,5 @@ def interaction_importance_xgb(xgb_model, fmap_path, title, saving_path='Results
     corr = create_vba_code(fmap_path, saving_path)
 
     xgbfir.saveXgbFI(xgb_model, OutputXlsxFile=saving_path + title + '.xlsx')
+
 

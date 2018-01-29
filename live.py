@@ -1,13 +1,9 @@
+from binance.client import Client
 from get_data import BuildDatabase
 import brouillon
 import pandas as pd
-import time
+from time import sleep
 
-"""
-1/ get a starting dataset to have all variables
-2/ each t_period seconds, create a mini db 
-3/ predict from model
-"""
 
 class Live:
 
@@ -20,50 +16,57 @@ class Live:
         self.t_interval = t_interval
         self.model = model
         self.symbol = symbol
-        symbol = 'BNBBTC'
-        self.c = BuildDatabase(brouillon.api_key, brouillon.api_secret, self.symbol)
+        self.client = Client(brouillon.api_key, brouillon.api_secret)
         #initialize database
         self.db = pd.DataFrame()
-        self.is_data_flowing = False # Boolean detecting if we are currently scraping data through the api
-
-
         self.last_id_scrapped = 0
+
+        self.carry = []  # list of long position with the price of the asset or None if we don't have it
+
 
     def start_dataflow(self):
         # starting dataset:
-        self.is_data_flowing = True
-            db = self.c.start_data_extract(10*500)
 
-        while self.is_data_flowing:
-            print("Update")
-            time.sleep(self.t_interval)  # Delay for t_interval seconds.
+        aggregator = BuildDatabase(brouillon.api_key, brouillon.api_secret, symbol)
+        data_init = aggregator.start_data_extract(20000)
+        last_id = data_init['id'].max()
+        # data_init_agg = aggregator.create_modeling_database(agg_lvl='{}s'.format(self.t_interval), database=data_init)
 
-            new_data = self.c.create_modeling_database(agg_lvl='{}s'.format(int(self.t_interval)))
+        threshold = 1
 
-            print model.predict(new_data)
+        while True:
+            sleep(5)
+            # Update one step:
+            len_max_dataset = 20000
+            data_live = pd.DataFrame(self.client.get_historical_trades(symbol=symbol, fromId=last_id + 1))
+            updated_db = pd.concat([data_init, data_live])
+            last_id = updated_db['id'].max()
+            # delete points too old not to increase memory storage.
+            if len(updated_db) > len_max_dataset:
+                updated_db = updated_db.iloc[-len_max_dataset:]
+            # Aggregate database
+            updated_agg_db = aggregator.create_modeling_database(agg_lvl='{}s'.format(self.t_interval), database=updated_db)
 
-    def stop_dataflow(self):
-        self.is_data_flowing = False #todo:  ca va pas
+            line_to_predict = updated_agg_db.iloc[-1:]
+
+            # Use the model to get the prediction for the next minutes
+            preds = self.model.predict(line_to_predict.drop('weekday_name', axis=1))
+
+            pred = preds[0]  # maybe put a smooth function here. (take the mean of the last points ?
+            print('Prediction at time {}: {}'.format(line_to_predict.index[0], pred))
+
+            # Buy / Sell:
+            self.bot_action_scenario(pred, threshold_buy=1)
+
+    #def function bot() that take the decision to buy or sell: #todo: @Mouch
+    def bot_action_scenario(self, predicted_price, threshold_buy):
+        if predicted_price > threshold_buy:
+            print("j'acheeeeeeete ! ")
 
 
-# Testing Class:
-class ModelTest:
-    def __init__(self, gbm_model, target_name, weight_name, rdm10_name):
-        self.gbm_model = gbm_model
-        self.target_name = target_name
-        self.weight_name =weight_name
-        self.rdm10_name = rdm10_name
 
-    def predict(self, db_to_predict):#, gbm_model, db_to_predict, target_name, weight_name, rdm10_name):
-        Xtest = db_to_predict.drop([target_name, weight_name, rdm10_name], inplace=False, axis=1)
-        ytest = db_to_predict[target_name]
-        wtest = db_to_predict[weight_name]
-        xgtest = xgb.DMatrix(Xtest.values, label=ytest.values, weight=wtest.values)
-        preds = self.gbm_model.predict(xgtest)
-        return preds
+l = Live(5, model=m, symbol='BNBBTC')
+
+l.start_dataflow()
 
 
-model = ModelTest(gbm_model, target_name, weight_name, rdm10_name)
-model.predict(db_training)
-live = Live(5, model, symbol='BNBBTC')
-live.start_dataflow()

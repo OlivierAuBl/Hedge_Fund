@@ -129,13 +129,17 @@ class ModelXGB():
             print('You need to train the model before predicting. (see ModelXGB.train())')
 
     def plot(self, treshold_buy):
-        plt.plot(self.db_train['price'])
+
         future = self.predict(self.db_train)
+        price = self.db_train['price'].copy(deep=True)
         for i in range(len(future)):
             if future[i] < treshold_buy:
                 future[i] = None
+                price[i] = None
         to_plot = self.db_train.assign(y=self.db_train.price.values, y_thre_hat=future)[['y', 'y_thre_hat']]
-        plt.plot(to_plot.index, (to_plot.y_thre_hat.values > 1) * self.db_train['price'], 'ro', markersize=1)
+
+        plt.plot(self.db_train['price'].values)
+        plt.plot(to_plot.index, (to_plot.y_thre_hat.values > treshold_buy) * price, 'ro', markersize=1)
         plt.show()
 
 

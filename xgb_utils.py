@@ -1227,14 +1227,14 @@ def plot_train_vs_eval(evals_result, prefix, num_round, metric='logloss', path_p
     -------
 
     """
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(4, 3))
     plt.plot(range(0, num_round), np.array(evals_result['Train'][metric]).astype(np.float))
     plt.plot(range(0, num_round), np.array(evals_result['Val'][metric]).astype(np.float))
     # np.array(test_b['Train']).astype(np.float)
 
     y_min = np.array(evals_result['Val'][metric]).astype(np.float).min()
 
-    plt.ylim(y_min, y_min*1.01)
+    plt.ylim(y_min, y_min*1.02)
     plt.xlim(0, num_round)
     plt.legend(labels=['Train', 'Val'])
     plt.gcf().savefig(path_plot_save + prefix + '_train_vs_val.png')

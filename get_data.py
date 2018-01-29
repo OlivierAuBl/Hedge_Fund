@@ -24,7 +24,6 @@ class BuildDatabase:
 
         self.client = Client(self.api_key, self.api_secret)
         # Get the ID now
-
         last_id = self.client.get_recent_trades(symbol=self.symbol, limit=1)[0]['id']
         start_id = last_id - nrows + 1
 
@@ -51,7 +50,7 @@ class BuildDatabase:
 
             self.database = pd.concat([self.database, pd.DataFrame(extract_i)])
             if nbcall > 1200:
-                sleep(0.7)  # should be 0.5 in theory
+                sleep(0.55)  # should be 0.5 in theory
             call += 1
 
             print("{}/{}".format(call, nbcall))
@@ -123,11 +122,13 @@ class BuildDatabase:
         var = 'price_variation'
         for t in [10, 20, 40, 60, 120]:
             len_time = '{}S'.format(t)  # T for minutes / s for seconds
+            var_name = '{}_trend_{}'.format(var, len_time)
             mini_db_agg = pd.DataFrame(db[var].resample(len_time).sum())
-            mini_db_agg.rename(columns={var: '{}_trend_{}'.format(var, len_time)}, inplace=True)
+            mini_db_agg.rename(columns={var: var_name}, inplace=True)
             mini_db_agg = mini_db_agg.resample(t_agg).max()
-            mini_db_agg = mini_db_agg.interpolate(method='zero')
+            mini_db_agg = mini_db_agg.interpolate(method='zero', limit_direction='both', limit=100)
             agg_db = pd.merge(agg_db, mini_db_agg, how='left', left_index=True, right_index=True)
+            agg_db[var_name] = agg_db[var_name].interpolate(method='time', limit_direction='both', limit=10000) # fix end NaNs.
 
         agg_db["weekday_name"] = agg_db.index
         agg_db["weekday_name"] = agg_db["weekday_name"].dt.weekday_name
